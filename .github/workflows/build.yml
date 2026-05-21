@@ -24,12 +24,22 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Download gradle-wrapper.jar
+      # Используем официальный gradle action — он сам ставит gradle и wrapper
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.6'
+
+      - name: Create gradlew that uses system gradle
         working-directory: android
         run: |
-          mkdir -p gradle/wrapper
-          curl -fsSL "https://raw.githubusercontent.com/gradle/gradle/v8.6.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+          # Заменяем gradlew скриптом который использует gradle из PATH
+          cat > gradlew << 'GRADLEW'
+          #!/bin/sh
+          exec gradle "$@"
+          GRADLEW
           chmod +x gradlew
+          gradle --version
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -73,6 +83,8 @@ jobs:
                   if not os.path.exists(target):
                       open(target,'wb').write(png)
                       print(f'Created {folder}/{name}')
+                  else:
+                      print(f'OK {folder}/{name}')
           PYEOF
 
       - name: Inject server URL
@@ -111,14 +123,14 @@ jobs:
 
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: gradle assembleDebug --no-daemon --stacktrace
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Xmx2g"
 
       - name: Build Release APK
         if: env.SIGNING == 'release'
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: gradle assembleRelease --no-daemon --stacktrace
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Xmx2g"
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -167,5 +179,5 @@ jobs:
               echo "| APK | $(basename $f) |" >> $GITHUB_STEP_SUMMARY
             done
           else
-            echo "| APK | not found - check build logs |" >> $GITHUB_STEP_SUMMARY
+            echo "| APK | build failed - check logs |" >> $GITHUB_STEP_SUMMARY
           fi
