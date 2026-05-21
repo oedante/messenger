@@ -16,8 +16,8 @@ android {
         versionName "1.0"
 
         // ⚠️ Для продакшена замените на реальные значения
-        buildConfigField "String",  "SERVER_URL",      "\"http://YOUR_SERVER_IP:8000\""
-        buildConfigField "String",  "SERVER_HOSTNAME",  "\"YOUR_SERVER_IP\""
+        buildConfigField "String",  "SERVER_URL",      "\"http://37.46.19.193:8000\""
+        buildConfigField "String",  "SERVER_HOSTNAME",  "\"37.46.19.193\""
         // Certificate pin (sha256 base64) — пусто = pinning отключён
         buildConfigField "String",  "CERT_PIN",         "\"\""
     }
@@ -37,8 +37,8 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
             // В release используем HTTPS
-            buildConfigField "String", "SERVER_URL",     "\"https://YOUR_DOMAIN.COM\""
-            buildConfigField "String", "SERVER_HOSTNAME", "\"YOUR_DOMAIN.COM\""
+            buildConfigField "String", "SERVER_URL",     "\"https://37.46.19.193\""
+            buildConfigField "String", "SERVER_HOSTNAME", "\"37.46.19.193\""
             // Укажите реальный pin для certificate pinning
             buildConfigField "String", "CERT_PIN",        "\"YOUR_CERT_SHA256_BASE64=\""
 
