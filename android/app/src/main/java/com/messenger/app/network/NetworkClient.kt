@@ -1,5 +1,7 @@
 package com.messenger.app.network
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.google.gson.Gson
 import com.messenger.app.BuildConfig
@@ -29,13 +31,6 @@ object RetrofitClient {
                 }.build())
             }
 
-        // Certificate Pinning: включить в продакшене
-        // val pinner = CertificatePinner.Builder()
-        //     .add("yourdomain.com", "sha256/YOUR_CERT_PIN_BASE64=")
-        //     .build()
-        // builder.certificatePinner(pinner)
-
-        // HTTP logging только в DEBUG
         if (BuildConfig.DEBUG) {
             builder.addInterceptor(HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BASIC
@@ -47,7 +42,7 @@ object RetrofitClient {
 
     val api: ApiService by lazy {
         Retrofit.Builder()
-            .baseUrl("${BuildConfig.SERVER_URL}/")
+            .baseUrl("\${BuildConfig.SERVER_URL}/")
             .client(httpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
@@ -59,6 +54,7 @@ object RetrofitClient {
 
 object WsManager {
     private val gson = Gson()
+    private val handler = Handler(Looper.getMainLooper())
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
@@ -66,6 +62,11 @@ object WsManager {
         .build()
 
     private var socket: WebSocket? = null
+    private var currentToken: String? = null
+    private var reconnectAttempts = 0
+    private var shouldReconnect = true
+    private val MAX_RECONNECT_ATTEMPTS = 15
+    private val BASE_RECONNECT_DELAY_MS = 2000L
 
     private val _events    = MutableSharedFlow<WsEvent>(extraBufferCapacity = 128)
     private val _connected = MutableSharedFlow<Boolean>(extraBufferCapacity = 4)
@@ -74,15 +75,26 @@ object WsManager {
     val connected = _connected.asSharedFlow()
 
     fun connect(token: String) {
-        disconnect()
+        currentToken = token
+        shouldReconnect = true
+        reconnectAttempts = 0
+        doConnect(token)
+    }
+
+    private fun doConnect(token: String) {
+        disconnect(reconnect = false)
+
         val wsUrl = BuildConfig.SERVER_URL
             .replace("https://", "wss://")
             .replace("http://", "ws://") + "/ws?token=$token"
+
+        if (BuildConfig.DEBUG) Log.d(TAG, "WS connecting to: $wsUrl")
 
         socket = client.newWebSocket(
             Request.Builder().url(wsUrl).build(),
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, r: Response) {
+                    reconnectAttempts = 0
                     _connected.tryEmit(true)
                     if (BuildConfig.DEBUG) Log.d(TAG, "WS connected")
                 }
@@ -96,12 +108,27 @@ object WsManager {
                 }
                 override fun onFailure(ws: WebSocket, t: Throwable, r: Response?) {
                     _connected.tryEmit(false)
-                    if (BuildConfig.DEBUG) Log.e(TAG, "WS fail: ${t.message}")
+                    if (BuildConfig.DEBUG) Log.e(TAG, "WS fail: \${t.message}")
+                    scheduleReconnect()
                 }
                 override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                     _connected.tryEmit(false)
+                    if (code != 1000) scheduleReconnect()
                 }
             })
+    }
+
+    private fun scheduleReconnect() {
+        if (!shouldReconnect) return
+        val token = currentToken ?: return
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            Log.w(TAG, "WS max reconnect attempts reached")
+            return
+        }
+        reconnectAttempts++
+        val delay = BASE_RECONNECT_DELAY_MS * minOf(reconnectAttempts.toLong(), 10)
+        if (BuildConfig.DEBUG) Log.d(TAG, "WS reconnecting in \${delay}ms (attempt $reconnectAttempts)")
+        handler.postDelayed({ doConnect(token) }, delay)
     }
 
     fun sendTyping(roomId: Int)  = send(mapOf("type" to "typing",  "room_id"    to roomId))
@@ -113,5 +140,10 @@ object WsManager {
         catch (e: Exception) { if (BuildConfig.DEBUG) Log.e(TAG, "send: $e") }
     }
 
-    fun disconnect() { socket?.close(1000, "bye"); socket = null }
+    fun disconnect(reconnect: Boolean = true) {
+        if (!reconnect) shouldReconnect = false
+        handler.removeCallbacksAndMessages(null)
+        try { socket?.close(1000, "bye") } catch (_: Exception) {}
+        socket = null
+    }
 }
