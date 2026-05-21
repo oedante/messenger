@@ -10,12 +10,14 @@ data class User(val id: Int, val username: String,
     @SerializedName("display_name") val displayName: String?,
     val avatar: String?, val bio: String?,
     val online: Boolean = false,
-    @SerializedName("last_seen") val lastSeen: Long = 0L) {
+    @SerializedName("last_seen") val lastSeen: Long = 0L,
+    val phone: String? = null) {
     val name get() = displayName?.takeIf { it.isNotBlank() } ?: username
 }
 data class UpdateProfileRequest(
     @SerializedName("display_name") val displayName: String? = null,
-    val bio: String? = null)
+    val bio: String? = null,
+    val phone: String? = null)
 data class AvatarResponse(val avatar: String)
 
 data class Room(val id: Int, val type: String, val title: String?,
@@ -87,3 +89,16 @@ data class WsEvent(val type: String, val message: Message? = null,
 data class PublicKeyRequest(
     @SerializedName("public_key") val publicKey: String
 )
+
+// ── Phone Auth ───────────────────────────────────────────
+data class PhoneCodeRequest(val phone: String)
+data class PhoneCodeResponse(val ok: Boolean, val message: String? = null)
+data class PhoneVerifyRequest(
+    val phone: String,
+    val code: String,
+    @SerializedName("display_name") val displayName: String? = null,
+    @SerializedName("device_name")  val deviceName: String? = null
+)
+
+// ── Contact Search ───────────────────────────────────────
+data class FindContactsRequest(val phones: List<String>)
