@@ -24,7 +24,6 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      # Используем официальный gradle action — он сам ставит gradle и wrapper
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
@@ -33,7 +32,6 @@ jobs:
       - name: Create gradlew that uses system gradle
         working-directory: android
         run: |
-          # Заменяем gradlew скриптом который использует gradle из PATH
           cat > gradlew << 'GRADLEW'
           #!/bin/sh
           exec gradle "$@"
@@ -141,10 +139,14 @@ jobs:
         run: |
           mkdir -p apk-output
           DATE=$(date +%Y%m%d-%H%M)
-          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          SHA=$(git rev-parse --short=7 HEAD)
           
-          # Копируем все APK файлы из всех директорий
-          find android/app/build/outputs/apk -name "*.apk" -type f | while read apk_file; do
+          # Очищаем директорию перед копированием
+          rm -rf apk-output/*
+          mkdir -p apk-output
+          
+          # Копируем ТОЛЬКО файлы с расширением .apk
+          find android/app/build/outputs/apk -type f -name "*.apk" | while read apk_file; do
             if [[ "$apk_file" == *"debug"* ]]; then
               TYPE="debug"
             elif [[ "$apk_file" == *"release"* ]]; then
@@ -155,25 +157,22 @@ jobs:
             
             NEW_NAME="Messenger-${TYPE}-${DATE}-${SHA}.apk"
             cp "$apk_file" "apk-output/${NEW_NAME}"
-            echo "✅ Copied: $(basename "$apk_file") -> ${NEW_NAME}"
+            
+            SIZE=$(stat -c%s "apk-output/${NEW_NAME}")
+            SIZE_MB=$((SIZE / 1024 / 1024))
+            echo "✅ Copied: $(basename "$apk_file") -> ${NEW_NAME} (${SIZE_MB} MB)"
           done
           
-          # Также проверяем файлы без расширения .apk
-          find android/app/build/outputs/apk -type f ! -name "*.apk" | while read file; do
-            if [[ -f "$file" ]]; then
-              if [[ "$file" == *"debug"* ]]; then
-                TYPE="debug"
-              elif [[ "$file" == *"release"* ]]; then
-                TYPE="release"
-              else
-                TYPE="unknown"
-              fi
-              
-              NEW_NAME="Messenger-${TYPE}-${DATE}-${SHA}.apk"
-              cp "$file" "apk-output/${NEW_NAME}"
-              echo "✅ Copied (no extension): $(basename "$file") -> ${NEW_NAME}"
-            fi
-          done
+          APK_COUNT=$(find apk-output -name "*.apk" -type f | wc -l)
+          echo ""
+          echo "📊 Found ${APK_COUNT} APK file(s)"
+          
+          if [ ${APK_COUNT} -eq 0 ]; then
+            echo "❌ ERROR: No APK files found!"
+            echo "Searching in: android/app/build/outputs/apk/"
+            find android/app/build/outputs/apk -type f | head -20
+            exit 1
+          fi
           
           echo ""
           echo "📦 APK files in apk-output:"
@@ -185,7 +184,7 @@ jobs:
           name: Messenger-Debug-APK
           path: apk-output/Messenger-debug-*.apk
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload Release APK
         if: env.SIGNING == 'release'
@@ -194,7 +193,7 @@ jobs:
           name: Messenger-Release-APK
           path: apk-output/Messenger-release-*.apk
           retention-days: 90
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Summary
         if: always()
@@ -202,7 +201,7 @@ jobs:
           echo "## Build Result" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | $(echo "${{ github.sha }}" | cut -c1-7) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | $(git rev-parse --short=7 HEAD) |" >> $GITHUB_STEP_SUMMARY
           echo "| Signing | ${{ env.SIGNING }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Date | $(date +'%Y-%m-%d %H:%M:%S') |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
