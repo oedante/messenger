@@ -1,0 +1,16 @@
+[Unit]
+Description=Messenger API Server
+After=network.target
+
+[Service]
+Type=simple
+User=messenger
+WorkingDirectory=/opt/messenger
+ExecStart=/opt/messenger/venv/bin/python main.py
+Restart=on-failure
+RestartSec=5
+Environment=SECRET_KEY=CHANGE_ME
+Environment=MAX_FILE_MB=20
+
+[Install]
+WantedBy=multi-user.target
