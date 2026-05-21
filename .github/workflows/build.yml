@@ -91,7 +91,7 @@ jobs:
         working-directory: android
         run: |
           URL="${{ secrets.SERVER_URL }}"
-          if [ -z "$URL" ]; then URL="http://YOUR_SERVER_IP:8000"; fi
+          if [ -z "$URL" ]; then URL="http://37.46.19.193:8000"; fi
           sed -i "s|http://YOUR_SERVER_IP:8000|${URL}|g" app/build.gradle
           echo "Server URL: $URL"
 
@@ -149,13 +149,25 @@ jobs:
             echo "Ready: $(basename $OUT)"
           done
           ls -lh apk-output/
-
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Messenger-Debug-APK
-          path: apk-output/Messenger-debug-*.apk
-          retention-days: 30
+          
+      - name: Fix APK naming
+        run: |
+          mkdir -p apk-output
+          # Копируем все APK файлы с правильным расширением
+          find android/app/build/outputs/apk -name "*.apk" -exec cp {} apk-output/ \;
+          # Переименовываем файлы без расширения
+          for f in apk-output/*; do
+            if [[ ! "$f" == *.apk ]] && [[ -f "$f" ]]; then
+              mv "$f" "${f}.apk"
+            fi
+          done
+          ls -la apk-output/
+            - name: Upload Debug APK
+              uses: actions/upload-artifact@v4
+              with:
+                name: Messenger-Debug-APK
+                path: apk-output/Messenger-debug-*.apk
+                retention-days: 30
 
       - name: Upload Release APK
         if: env.SIGNING == 'release'
