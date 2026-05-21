@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
@@ -19,8 +20,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Messenger"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:usesCleartextTraffic="false"
-        android:debuggable="false">
+        android:usesCleartextTraffic="\${usesCleartextTraffic}">
 
         <activity
             android:name=".ui.LoginActivity"
@@ -33,6 +33,8 @@
         </activity>
         <activity android:name=".ui.RegisterActivity"
             android:windowSoftInputMode="adjustResize"/>
+        <activity android:name=".ui.PhoneLoginActivity"
+            android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".ui.RoomListActivity"/>
         <activity android:name=".ui.chat.ChatActivity"
             android:windowSoftInputMode="adjustResize"/>
@@ -41,5 +43,6 @@
             android:launchMode="singleTop"/>
         <activity android:name=".ui.NewRoomActivity"/>
         <activity android:name=".ui.ProfileActivity"/>
+        <activity android:name=".ui.ContactSearchActivity"/>
     </application>
 </manifest>
