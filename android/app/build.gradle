@@ -16,7 +16,7 @@ android {
         versionName "1.0"
 
         // ⚠️ Для продакшена замените на реальные значения
-        buildConfigField "String",  "SERVER_URL",      "\"http://37.46.19.193:8000\""
+        buildConfigField "String",  "SERVER_URL",      "\"http://37.46.19.193\""
         buildConfigField "String",  "SERVER_HOSTNAME",  "\"37.46.19.193\""
         // Certificate pin (sha256 base64) — пусто = pinning отключён
         buildConfigField "String",  "CERT_PIN",         "\"\""
