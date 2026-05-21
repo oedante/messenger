@@ -16,12 +16,12 @@ android {
         versionName "1.0"
 
         // ✅ Исправлено: добавлен порт :8000
-        buildConfigField "String", "SERVER_URL",      "\"http://37.46.19.193:8000\""
+        buildConfigField "String", "SERVER_URL",      "\"http://37.46.19.193\""
         buildConfigField "String", "SERVER_HOSTNAME",  "\"37.46.19.193\""
         buildConfigField "String", "CERT_PIN",         "\"\""
         
         // ✅ Добавлено: WebSocket URL для чата в реальном времени
-        buildConfigField "String", "WS_URL",           "\"ws://37.46.19.193:8000/ws\""
+        buildConfigField "String", "WS_URL",           "\"ws://37.46.19.193/ws\""
     }
 
     buildTypes {
