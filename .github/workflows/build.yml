@@ -81,7 +81,7 @@ jobs:
           URL="${{ secrets.SERVER_URL }}"
           if [ -z "$URL" ]; then URL="http://YOUR_SERVER_IP:8000"; fi
           sed -i "s|http://YOUR_SERVER_IP:8000|${URL}|g" app/build.gradle
-          echo "Server URL set to: $URL"
+          echo "Server URL: $URL"
 
       - name: Write signing config
         working-directory: android
@@ -134,8 +134,9 @@ jobs:
             TYPE=$(echo "$f" | grep -o 'debug\|release')
             OUT="apk-output/Messenger-${TYPE}-${DATE}-${SHA}.apk"
             cp "$f" "$OUT"
-            echo "Ready: $(basename $OUT) ($(du -sh $OUT | cut -f1))"
+            echo "Ready: $(basename $OUT)"
           done
+          ls -lh apk-output/
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -158,8 +159,13 @@ jobs:
           echo "## Build Result" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | $(echo ${{ github.sha }} | cut -c1-7) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | $(echo "${{ github.sha }}" | cut -c1-7) |" >> $GITHUB_STEP_SUMMARY
           echo "| Signing | ${{ env.SIGNING }} |" >> $GITHUB_STEP_SUMMARY
-          for f in apk-output/*.apk; do
-            [ -f "$f" ] && echo "| APK | $(basename $f) |" >> $GITHUB_STEP_SUMMARY
-          done
+          APK_COUNT=$(find apk-output -name "*.apk" 2>/dev/null | wc -l)
+          if [ "$APK_COUNT" -gt 0 ]; then
+            find apk-output -name "*.apk" | while read f; do
+              echo "| APK | $(basename $f) |" >> $GITHUB_STEP_SUMMARY
+            done
+          else
+            echo "| APK | not found - check build logs |" >> $GITHUB_STEP_SUMMARY
+          fi
