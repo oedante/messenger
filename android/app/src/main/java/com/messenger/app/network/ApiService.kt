@@ -17,6 +17,10 @@ interface ApiService {
     @GET("users/search")   suspend fun searchUsers(@Query("q") q: String): Response<List<User>>
     @GET("users/{id}")     suspend fun getUser(@Path("id") id: Int): Response<User>
 
+    // E2E — ПЕРЕНЕСЕНО ВНУТРЬ ИНТЕРФЕЙСА
+    @POST("users/me/public_key")
+    suspend fun uploadPublicKey(@Body r: PublicKeyRequest): Response<Unit>
+
     @GET("rooms")          suspend fun getRooms(): Response<List<Room>>
     @POST("rooms")         suspend fun createRoom(@Body r: CreateRoomRequest): Response<CreateRoomResponse>
     @GET("rooms/{id}")     suspend fun getRoom(@Path("id") id: Int): Response<Room>
@@ -45,6 +49,14 @@ interface ApiService {
     @POST("calls/{id}/end")    suspend fun endCall(@Path("id") id: Int): Response<Unit>
     @POST("calls/signal")      suspend fun sendSignal(@Body r: CallSignalRequest): Response<Unit>
 
-    @POST("users/me/public_key")
-    suspend fun uploadPublicKey(@Body r: com.messenger.app.models.PublicKeyRequest): Response<Unit>
+    // Phone auth
+    @POST("auth/phone/send-code")
+    suspend fun sendPhoneCode(@Body r: PhoneCodeRequest): Response<PhoneCodeResponse>
+
+    @POST("auth/phone/verify")
+    suspend fun verifyPhoneCode(@Body r: PhoneVerifyRequest): Response<AuthResponse>
+
+    // Contact search
+    @POST("users/contacts/find")
+    suspend fun findContacts(@Body r: FindContactsRequest): Response<List<User>>
 }
