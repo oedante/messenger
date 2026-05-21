@@ -44,8 +44,7 @@ interface ApiService {
     @POST("calls/{id}/accept") suspend fun acceptCall(@Path("id") id: Int): Response<Unit>
     @POST("calls/{id}/end")    suspend fun endCall(@Path("id") id: Int): Response<Unit>
     @POST("calls/signal")      suspend fun sendSignal(@Body r: CallSignalRequest): Response<Unit>
-}
 
-    // E2E
     @POST("users/me/public_key")
     suspend fun uploadPublicKey(@Body r: com.messenger.app.models.PublicKeyRequest): Response<Unit>
+}
