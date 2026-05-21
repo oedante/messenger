@@ -137,37 +137,55 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Collect APKs
+      - name: Collect and rename APKs
         run: |
           mkdir -p apk-output
           DATE=$(date +%Y%m%d-%H%M)
           SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          find android/app/build/outputs/apk -name "*.apk" | while read f; do
-            TYPE=$(echo "$f" | grep -o 'debug\|release')
-            OUT="apk-output/Messenger-${TYPE}-${DATE}-${SHA}.apk"
-            cp "$f" "$OUT"
-            echo "Ready: $(basename $OUT)"
-          done
-          ls -lh apk-output/
           
-      - name: Fix APK naming
-        run: |
-          mkdir -p apk-output
-          # Копируем все APK файлы с правильным расширением
-          find android/app/build/outputs/apk -name "*.apk" -exec cp {} apk-output/ \;
-          # Переименовываем файлы без расширения
-          for f in apk-output/*; do
-            if [[ ! "$f" == *.apk ]] && [[ -f "$f" ]]; then
-              mv "$f" "${f}.apk"
+          # Копируем все APK файлы из всех директорий
+          find android/app/build/outputs/apk -name "*.apk" -type f | while read apk_file; do
+            if [[ "$apk_file" == *"debug"* ]]; then
+              TYPE="debug"
+            elif [[ "$apk_file" == *"release"* ]]; then
+              TYPE="release"
+            else
+              TYPE="unknown"
+            fi
+            
+            NEW_NAME="Messenger-${TYPE}-${DATE}-${SHA}.apk"
+            cp "$apk_file" "apk-output/${NEW_NAME}"
+            echo "✅ Copied: $(basename "$apk_file") -> ${NEW_NAME}"
+          done
+          
+          # Также проверяем файлы без расширения .apk
+          find android/app/build/outputs/apk -type f ! -name "*.apk" | while read file; do
+            if [[ -f "$file" ]]; then
+              if [[ "$file" == *"debug"* ]]; then
+                TYPE="debug"
+              elif [[ "$file" == *"release"* ]]; then
+                TYPE="release"
+              else
+                TYPE="unknown"
+              fi
+              
+              NEW_NAME="Messenger-${TYPE}-${DATE}-${SHA}.apk"
+              cp "$file" "apk-output/${NEW_NAME}"
+              echo "✅ Copied (no extension): $(basename "$file") -> ${NEW_NAME}"
             fi
           done
-          ls -la apk-output/
-            - name: Upload Debug APK
-              uses: actions/upload-artifact@v4
-              with:
-                name: Messenger-Debug-APK
-                path: apk-output/Messenger-debug-*.apk
-                retention-days: 30
+          
+          echo ""
+          echo "📦 APK files in apk-output:"
+          ls -lh apk-output/
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Messenger-Debug-APK
+          path: apk-output/Messenger-debug-*.apk
+          retention-days: 30
+          if-no-files-found: warn
 
       - name: Upload Release APK
         if: env.SIGNING == 'release'
@@ -176,6 +194,7 @@ jobs:
           name: Messenger-Release-APK
           path: apk-output/Messenger-release-*.apk
           retention-days: 90
+          if-no-files-found: warn
 
       - name: Summary
         if: always()
@@ -185,11 +204,19 @@ jobs:
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | $(echo "${{ github.sha }}" | cut -c1-7) |" >> $GITHUB_STEP_SUMMARY
           echo "| Signing | ${{ env.SIGNING }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Date | $(date +'%Y-%m-%d %H:%M:%S') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
           APK_COUNT=$(find apk-output -name "*.apk" 2>/dev/null | wc -l)
           if [ "$APK_COUNT" -gt 0 ]; then
-            find apk-output -name "*.apk" | while read f; do
-              echo "| APK | $(basename $f) |" >> $GITHUB_STEP_SUMMARY
+            echo "### 📱 APK Files:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            find apk-output -name "*.apk" -type f | while read f; do
+              SIZE=$(ls -lh "$f" | awk '{print $5}')
+              NAME=$(basename "$f")
+              echo "- \`${NAME}\` (${SIZE})" >> $GITHUB_STEP_SUMMARY
             done
           else
-            echo "| APK | build failed - check logs |" >> $GITHUB_STEP_SUMMARY
+            echo "### ❌ No APK files found!" >> $GITHUB_STEP_SUMMARY
+            echo "Build may have failed. Please check logs above." >> $GITHUB_STEP_SUMMARY
           fi
