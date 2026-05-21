@@ -7,6 +7,7 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.messenger.app.databinding.ActivityNewRoomBinding
 import com.messenger.app.models.CreateRoomRequest
 import com.messenger.app.models.User
@@ -25,7 +26,9 @@ class NewRoomActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         b = ActivityNewRoomBinding.inflate(layoutInflater); setContentView(b.root)
-        setSupportActionBar(b.toolbar); supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        setSupportActionBar(b.toolbar)
+        supportActionBar?.title = "Новый чат"
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         b.btnDirect.setOnClickListener  { setMode("direct") }
         b.btnGroup.setOnClickListener   { setMode("group") }
@@ -33,6 +36,7 @@ class NewRoomActivity : AppCompatActivity() {
         setMode("direct")
 
         val adapter = UserSelectAdapter(selected) { updateCreate() }
+        b.recycler.layoutManager = LinearLayoutManager(this)  // ИСПРАВЛЕНО
         b.recycler.adapter = adapter
 
         b.etSearch.addTextChangedListener(object : TextWatcher {
