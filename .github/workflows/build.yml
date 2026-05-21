@@ -1,0 +1,173 @@
+name: Build & Sign APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Download gradle-wrapper.jar
+        working-directory: android
+        run: |
+          mkdir -p gradle/wrapper
+          curl -fsSL \
+            "https://raw.githubusercontent.com/gradle/gradle/v8.6.0/gradle/wrapper/gradle-wrapper.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar
+          chmod +x gradlew
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      # ── Генерируем иконки если их нет ─────────────────────────────────────
+      - name: Generate launcher icons
+        run: |
+          python3 << 'EOF'
+          import os, struct, zlib
+
+          def make_png(size, bg=(26,115,232)):
+              pixels = []
+              cx, cy, r = size//2, size//2, int(size*0.45)
+              for y in range(size):
+                  row = []
+                  for x in range(size):
+                      dist = ((x-cx)**2 + (y-cy)**2)**0.5
+                      if dist <= r:
+                          row += list(bg) + [255]
+                      else:
+                          row += [0,0,0,0]
+                  pixels.append(bytes(row))
+              def chunk(name, data):
+                  c = zlib.crc32(name+data) & 0xffffffff
+                  return struct.pack('>I',len(data))+name+data+struct.pack('>I',c)
+              raw = b''.join(b'\x00'+row for row in pixels)
+              png = b'\x89PNG\r\n\x1a\n'
+              png += chunk(b'IHDR', struct.pack('>IIBBBBB',size,size,8,6,0,0,0))
+              png += chunk(b'IDAT', zlib.compress(raw,9))
+              png += chunk(b'IEND', b'')
+              return png
+
+          sizes = {'mipmap-mdpi':48,'mipmap-hdpi':72,'mipmap-xhdpi':96,
+                   'mipmap-xxhdpi':144,'mipmap-xxxhdpi':192}
+          base = 'android/app/src/main/res'
+          for folder, size in sizes.items():
+              path = os.path.join(base, folder)
+              os.makedirs(path, exist_ok=True)
+              png = make_png(size)
+              for name in ['ic_launcher.png','ic_launcher_round.png']:
+                  target = os.path.join(path, name)
+                  if not os.path.exists(target):
+                      open(target,'wb').write(png)
+                      print(f'Created {folder}/{name}')
+                  else:
+                      print(f'Exists  {folder}/{name}')
+          EOF
+
+      - name: Inject server URL
+        working-directory: android
+        run: |
+          URL="${{ secrets.SERVER_URL }}"
+          [ -z "$URL" ] && URL="http://YOUR_SERVER_IP:8000"
+          sed -i "s|http://YOUR_SERVER_IP:8000|${URL}|g" app/build.gradle
+          echo "Server URL: $URL"
+
+      - name: Set up keystore
+        working-directory: android
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+            cat >> app/build.gradle << 'GRADLE'
+android.signingConfigs {
+    release {
+        storeFile file("release.keystore")
+        storePassword System.getenv("KEYSTORE_PASSWORD")
+        keyAlias System.getenv("KEY_ALIAS")
+        keyPassword System.getenv("KEY_PASSWORD")
+    }
+}
+android.buildTypes.release.signingConfig = android.signingConfigs.release
+GRADLE
+            echo "SIGNING=release" >> $GITHUB_ENV
+          else
+            echo "SIGNING=debug" >> $GITHUB_ENV
+          fi
+
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Xmx2g"
+
+      - name: Build Release APK
+        if: env.SIGNING == 'release'
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Xmx2g"
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Collect APKs
+        run: |
+          mkdir -p apk-output
+          DATE=$(date +%Y%m%d-%H%M)
+          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          find android/app/build/outputs/apk -name "*.apk" | while read f; do
+            TYPE=$(echo "$f" | grep -o 'debug\|release')
+            OUT="apk-output/Messenger-${TYPE}-${DATE}-${SHA}.apk"
+            cp "$f" "$OUT"
+            echo "✅ $(basename $OUT) — $(du -sh $OUT | cut -f1)"
+          done
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Messenger-Debug-APK
+          path: apk-output/Messenger-debug-*.apk
+          retention-days: 30
+
+      - name: Upload Release APK
+        if: env.SIGNING == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Messenger-Release-APK
+          path: apk-output/Messenger-release-*.apk
+          retention-days: 90
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 📦 Build Result" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`$(echo ${{ github.sha }} | cut -c1-7)\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Signing | \`${{ env.SIGNING }}\` |" >> $GITHUB_STEP_SUMMARY
+          for f in apk-output/*.apk 2>/dev/null; do
+            [ -f "$f" ] && echo "| APK | $(basename $f) — $(du -sh $f | cut -f1) |" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> ⬇️ Скачать: **Actions → этот запуск → Artifacts**" >> $GITHUB_STEP_SUMMARY
