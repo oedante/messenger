@@ -15,11 +15,13 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // ⚠️ Для продакшена замените на реальные значения
-        buildConfigField "String",  "SERVER_URL",      "\"http://37.46.19.193\""
-        buildConfigField "String",  "SERVER_HOSTNAME",  "\"37.46.19.193\""
-        // Certificate pin (sha256 base64) — пусто = pinning отключён
-        buildConfigField "String",  "CERT_PIN",         "\"\""
+        // ✅ Исправлено: добавлен порт :8000
+        buildConfigField "String", "SERVER_URL",      "\"http://37.46.19.193:8000\""
+        buildConfigField "String", "SERVER_HOSTNAME",  "\"37.46.19.193\""
+        buildConfigField "String", "CERT_PIN",         "\"\""
+        
+        // ✅ Добавлено: WebSocket URL для чата в реальном времени
+        buildConfigField "String", "WS_URL",           "\"ws://37.46.19.193:8000/ws\""
     }
 
     buildTypes {
@@ -36,12 +38,17 @@ android {
             shrinkResources true     // Удаление неиспользуемых ресурсов
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
-            // В release используем HTTPS
-            buildConfigField "String", "SERVER_URL",     "\"https://37.46.19.193\""
+            // ✅ Исправлено: добавлен порт :8000 для HTTPS
+            buildConfigField "String", "SERVER_URL",     "\"https://37.46.19.193:8000\""
             buildConfigField "String", "SERVER_HOSTNAME", "\"37.46.19.193\""
-            // Укажите реальный pin для certificate pinning
-            buildConfigField "String", "CERT_PIN",        "\"YOUR_CERT_SHA256_BASE64=\""
-
+            
+            // ✅ Исправлено: корректный синтаксис строки для CERT_PIN
+            // Если certificate pinning отключён — оставьте пустую строку:
+            buildConfigField "String", "CERT_PIN",        "\"\""
+            // Если включён — укажите реальный pin в формате: "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+            
+            // ✅ Добавлено: WebSocket URL для release-сборки (WSS)            buildConfigField "String", "WS_URL",          "\"wss://37.46.19.193:8000/ws\""
+            
             manifestPlaceholders = [usesCleartextTraffic: "false"]
         }
     }
@@ -89,8 +96,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
-    implementation 'de.hdodenhof:circleimageview:3.1.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'    implementation 'de.hdodenhof:circleimageview:3.1.0'
 
     // Images
     implementation 'com.github.bumptech.glide:glide:4.16.0'
